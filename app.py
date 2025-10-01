@@ -1,80 +1,82 @@
 import streamlit as st
 
-# ページ設定
-st.set_page_config(
-    page_title="ダメージ計算ツール",
-    page_icon="⚔️",
-    layout="centered"
-)
+# 履歴をセッションで保持
+if "history" not in st.session_state:
+    st.session_state.history = []
 
-# タイトル
 st.title("⚔ ダメージ計算ツール")
 
-st.markdown("""
-このツールは攻撃力と防御力を入力すると、与えるダメージを計算します。  
-属性相性・急所補正・命中/回避も対応。結果は履歴に保存されます。
-""")
+# 攻撃ステータス入力
+st.subheader("攻撃側ステータス")
+col1, col2, col3 = st.columns(3)
+with col1:
+    attack = st.number_input("攻撃力", 1, 999, 50)
+    atk_bonus = st.number_input("技補正", 1, 5, 1)
+with col2:
+    atk_attr = st.selectbox("属性", ["火", "水", "木", "雷", "光", "闇"])
+    atk_level = st.number_input("レベル", 1, 100, 50)
+with col3:
+    atk_times = st.number_input("回数", 1, 10, 1)
+    crit_rate = st.slider("急所率(%)", 0, 100, 10)
 
-# 攻撃側入力
-st.subheader("⚔ 攻撃側ステータス")
-attack = st.number_input("攻撃力", min_value=1, step=1, value=50)
-技補正 = st.slider("技補正", 0.1, 3.0, 1.0, 0.1)
-属性攻撃 = st.selectbox("攻撃側属性", ["火", "木", "雷", "水", "光", "闇"])
-攻撃レベル = st.number_input("攻撃側レベル", min_value=1, step=1, value=50)
-攻撃回数 = st.number_input("攻撃回数", min_value=1, step=1, value=1)
-急所率 = st.slider("急所率 (0〜1)", 0.0, 1.0, 0.0, 0.1)
-命中 = st.slider("命中率 (%)", 0, 100, 100)
+# 防御ステータス入力
+st.subheader("防御側ステータス")
+col4, col5, col6 = st.columns(3)
+with col4:
+    defense = st.number_input("防御力", 0, 999, 30)
+    def_bonus = st.number_input("防御補正", 1, 5, 1)
+with col5:
+    def_attr = st.selectbox("属性", ["火", "水", "木", "雷", "光", "闇"])
+    def_level = st.number_input("レベル", 1, 100, 50)
+with col6:
+    evade = st.slider("回避率(%)", 0, 100, 5)
 
-# 防御側入力
-st.subheader("🛡 防御側ステータス")
-defense = st.number_input("防御力", min_value=0, step=1, value=30)
-防御補正 = st.slider("防御補正", 0.1, 3.0, 1.0, 0.1)
-属性防御 = st.selectbox("防御側属性", ["火", "木", "雷", "水", "光", "闇"])
-防御レベル = st.number_input("防御側レベル", min_value=1, step=1, value=50)
-回避 = st.slider("回避率 (%)", 0, 100, 0)
+# 属性相性表
+type_chart = {
+    "火": {"木": 2, "水": 0.5, "雷": 1, "火": 1, "光": 1, "闇": 1},
+    "木": {"雷": 2, "火": 0.5, "水": 1, "木": 1, "光": 1, "闇": 1},
+    "雷": {"水": 2, "木": 0.5, "火": 1, "雷": 1, "光": 1, "闇": 1},
+    "水": {"火": 2, "雷": 0.5, "木": 1, "水": 1, "光": 1, "闇": 1},
+    "光": {"闇": 2, "光": 1, "火": 1, "水": 1, "木": 1, "雷": 1},
+    "闇": {"光": 2, "闇": 1, "火": 1, "水": 1, "木": 1, "雷": 1},
+}
 
 # 計算ボタン
 if st.button("計算する"):
-    # 属性補正
-    属性倍率 = {
-        ("火", "木"): 2.0,
-        ("木", "雷"): 2.0,
-        ("雷", "水"): 2.0,
-        ("水", "火"): 2.0,
-        ("光", "闇"): 2.0,
-        ("闇", "光"): 2.0
-    }
-    属性補正 = 属性倍率.get((属性攻撃, 属性防御), 1.0)
-
-    # 急所補正
-    急所補正 = 1.5 if 急所率 > 0 else 1.0
-
-    # 命中・回避計算
-    命中補正 = (命中 - 回避) / 100
-    命中補正 = max(0, 命中補正)  # 0未満なら当たらない
-
-    # ダメージ計算
-    damage = max(1, (attack * 技補正 - defense * 防御補正) * 属性補正 * 急所補正 * 命中補正) * 攻撃回数
-
-    st.success(f"✅ 与えたダメージ: {damage:.1f}")
+    import random
+    # 命中判定
+    if random.random() < evade / 100:
+        result = "攻撃を回避された！"
+    else:
+        # ダメージ計算
+        crit = 1.5 if random.random() < crit_rate / 100 else 1
+        type_mult = type_chart[atk_attr][def_attr]
+        damage = max(1, int(((attack * atk_bonus * atk_level) / (defense * def_bonus * def_level + 1)) 
+                            * atk_times * crit * type_mult))
+        result = f"与えたダメージ: {damage} (急所:{'あり' if crit > 1 else 'なし'})"
 
     # 履歴保存
-    if "履歴" not in st.session_state:
-        st.session_state.履歴 = []
-    st.session_state.履歴.append(
-        f"Lv{攻撃レベル} {属性攻撃}攻撃 → Lv{防御レベル} {属性防御}防御: {damage:.1f}ダメージ"
-    )
+    st.session_state.history.insert(0, result)
 
-# 履歴表示
-if "履歴" in st.session_state and len(st.session_state.履歴) > 0:
-    st.markdown("---")
-    st.subheader("📜 計算履歴")
-    for h in reversed(st.session_state.履歴):
-        st.write(h)
+# 履歴カード風UI
+st.subheader("📜 ダメージ履歴")
+st.markdown(
+    """
+    <style>
+    .card {
+        padding: 10px;
+        margin: 8px 0;
+        border-radius: 8px;
+        background-color: #f8f9fa;
+        border: 1px solid #ddd;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
-# フッター
-st.markdown("""
----
-作成者: 8Air28  
-GitHub: [このポートフォリオ](https://github.com/8Air28/my-8th-portfolio)  
-""")
+for i, h in enumerate(st.session_state.history[:10]):
+    st.markdown(f"<div class='card'>#{i+1} {h}</div>", unsafe_allow_html=True)
+
+
